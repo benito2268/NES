@@ -425,25 +425,54 @@ u8 c6502::plp() {
 // 4. Logical operations
 
 u8 c6502::_and() {
+	if(addr_is_imm) {
+		a &= eff_addr;
+	}
+	else {
+		a &= bus->read(eff_addr);
+	}
 
+	set_flag(ZF, a == 0);
+	set_flag(NF, a & 0x80);
 
 	return 0;
 }
 
 u8 c6502::eor() {
+	if(addr_is_imm) {
+		a ^= eff_addr;
+	}
+	else {
+		a ^= bus->read(eff_addr);
+	}
 
+	set_flag(ZF, a == 0);
+	set_flag(NF, a & 0x80);
 
 	return 0;
 }
 
 u8 c6502::ora() {
+	if(addr_is_imm) {
+		a |= eff_addr;
+	}
+	else {
+		a |= bus->read(eff_addr);
+	}
 
+	set_flag(ZF, a == 0);
+	set_flag(NF, a & 0x80);
 
 	return 0;
 }
 
 u8 c6502::bit() {
+	//acc. acts as the mask
+	u8 mem = bus->read(eff_addr);
+	set_flag(ZF, (mem & a) == 0);
 
+	set_flag(NF, mem & 0x80);
+	set_flag(OF, mem & 0x40);
 
 	return 0;
 }
@@ -451,7 +480,22 @@ u8 c6502::bit() {
 // 5. Arithmetic operations
 
 u8 c6502::adc() {
+	u8 olda = a;
+	u16 carry = 0;
 
+	if(addr_is_imm) {
+		carry = a + eff_addr + (ps & (1 << CF));
+	}
+	else {
+		carry = a + bus->read(eff_addr) + (ps & (1 << CF));
+	}
+
+	//check if a carry-out happened
+	set_flag(CF, carry > 255);
+
+	//if the sign bit changed set the overflow flag
+	set_flag(OF, (olda & 0x80) != (a & 0x80));
+	set_flag(NF, a & 0x80);
 
 	return 0;
 }
