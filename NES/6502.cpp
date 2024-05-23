@@ -479,29 +479,65 @@ u8 c6502::bit() {
 
 // 5. Arithmetic operations
 
+//Performs [a + value + old_carry]
+//Carry is SET if an overflow occurs 
 u8 c6502::adc() {
-	u8 olda = a;
-	u16 carry = 0;
+	u8 fetched = 0;
+	u16 result = 0;
+
 
 	if(addr_is_imm) {
-		carry = a + eff_addr + (ps & (1 << CF));
+		fetched = eff_addr;
 	}
 	else {
-		carry = a + bus->read(eff_addr) + (ps & (1 << CF));
+		fetched = bus->read(eff_addr);
 	}
 
+	result = a + fetched + (ps & (1 << CF));
+
 	//check if a carry-out happened
-	set_flag(CF, carry > 255);
+	set_flag(CF, result > 255);
 
 	//if the sign bit changed set the overflow flag
-	set_flag(OF, (olda & 0x80) != (a & 0x80));
+	set_flag(OF, ((~(u16)a ^ result) & ((u16)fetched ^ result)) & 0x0080);
+
+	a = result & 0x00FF;
+
 	set_flag(NF, a & 0x80);
+	set_flag(ZF, a == 0);
+
 
 	return 0;
 }
 
+//Performs [a - value + old_carry]
+//Carry is CLEARED if an overflow occurs
 u8 c6502::sbc() {
+	//adc but with the value inverted
+	//NOTE: this is subtract with CARRY aka. "borrow-not"
+	u8 olda = a;
+	u16 result = 0;
 
+	u8 value;
+	if(addr_is_imm) {
+		value = eff_addr ^ 0xFF;
+	}
+	else {
+		value = bus->read(eff_addr) ^ 0xFF;
+	}
+
+	result = a + value + (ps & (1 << CF));
+
+	//clear CF if overflow happened
+	//note: set_flag() will clear the flag if the condition is false
+	set_flag(CF, result < 255);
+
+	//if the sign bit changed set the overflow flag
+	set_flag(OF, (olda & 0x80) != (a & 0x80));
+
+	a = result & 0x00FF;
+	set_flag(NF, a & 0x80);
+	set_flag(ZF, a == 0);
 
 	return 0;
 }

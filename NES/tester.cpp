@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "tester.h"
+#include "bitops.h"
 #include "6502.h"
 #include "bus.h"
 
@@ -12,7 +13,9 @@ bool Tester::run_tests() {
 		test("test_zp", &Tester::test_zp) &&
 		test("test_abs", &Tester::test_abs) &&
 		test("test_rel", &Tester::test_rel) &&
-		test("test_ind", &Tester::test_ind);
+		test("test_ind", &Tester::test_ind) &&
+		test("test_adc", &Tester::test_adc) &&
+		test("test_sbc", &Tester::test_sbc);
 
 	return b;
 }
@@ -118,6 +121,68 @@ bool Tester::test_ind() {
 
 	//should NOT be 0xCC60
 	bool b2 = bus->cpu->addr_ind() == 0xDD60;
+
+	return b1 && b2;
+}
+
+bool Tester::test_adc() {
+	//normal addition
+	bool b1 = false;
+
+	bus->write(0x4250, 2);
+	bus->cpu->eff_addr = 0x4250;
+	bus->cpu->addr_is_imm = false;
+	bus->cpu->a = 2;
+
+	bus->cpu->adc();
+
+	b1 = (bus->cpu->a == 4) &&
+		!(BIT_CHK(bus->cpu->ps, CF)) &&
+		!(BIT_CHK(bus->cpu->ps, ZF)) &&
+		!(BIT_CHK(bus->cpu->ps, OF));
+
+	//multibyte addition
+	bool b2 = false;
+	BIT_CLR(bus->cpu->ps, CF);
+
+	bus->write(0x4250, 0x01);
+	bus->cpu->eff_addr = 0x4250;
+	bus->cpu->addr_is_imm = false;
+	bus->cpu->a = 0xFF;
+
+	bus->cpu->adc();
+
+	b2 = (bus->cpu->a == 0x00) &&
+		 (BIT_CHK(bus->cpu->ps, CF)) &&
+		 (BIT_CHK(bus->cpu->ps, ZF)) &&
+		 (BIT_CHK(bus->cpu->ps, OF));
+
+	//overflow
+	bool b3 = false;
+	BIT_CLR(bus->cpu->ps, CF);
+
+	bus->write(0x4250, 0x7F);
+	bus->cpu->eff_addr = 0x4250;
+	bus->cpu->addr_is_imm = false;
+	bus->cpu->a = 0x01;
+
+	bus->cpu->adc();
+
+	b3 = (bus->cpu->a == 0x80) &&
+		!(BIT_CHK(bus->cpu->ps, CF)) &&
+		!(BIT_CHK(bus->cpu->ps, ZF)) &&
+		(BIT_CHK(bus->cpu->ps, OF));
+
+	return b1 && b2 && b3;
+}
+
+bool Tester::test_sbc() {
+	//normal subtraction
+	bool b1 = false;
+
+	//multibyte subtraction
+	bool b2 = false;
+
 
 	return b1 && b2;
 }

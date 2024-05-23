@@ -23,5 +23,10 @@ public:
 	bool test_rel();
 
 	bool test_ind();
+
+
+	//instructions
+	bool test_adc();
+	bool test_sbc();
 };
 
