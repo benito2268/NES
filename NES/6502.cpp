@@ -498,14 +498,14 @@ u8 c6502::adc() {
 	//check if a carry-out happened
 	set_flag(CF, result > 255);
 
-	//if the sign bit changed set the overflow flag
-	set_flag(OF, ((~(u16)a ^ result) & ((u16)fetched ^ result)) & 0x0080);
+	//set the V flag if the result sign is "incorrect"
+	//sign is considered incorrect if the sign of BOTH inputs is different from the result
+	set_flag(OF, (((u16)a ^ result) & ((u16)fetched ^ result)) & 0x0080);
 
 	a = result & 0x00FF;
 
 	set_flag(NF, a & 0x80);
 	set_flag(ZF, a == 0);
-
 
 	return 0;
 }
