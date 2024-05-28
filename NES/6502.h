@@ -17,6 +17,11 @@ class Tester;
 #define OF 6 //overflow
 #define NF 7 //negetive
 
+//flags the are technically not used
+#define DF 3
+#define BF 4
+#define UF 5
+
 /*
 * a.k.a. the Ricoh 2A03
 * 
@@ -35,6 +40,7 @@ private:
 	u16 eff_addr;
 	u32 cycles;
 	bool addr_is_imm;
+	bool addr_is_acc;
 	cDataBus *bus;
 
 private: 

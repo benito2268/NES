@@ -81,6 +81,7 @@ void c6502::clock() {
 		//set up the effective address
 		//as a side note... who came up with this syntax?
 		this->addr_is_imm = false;
+		this->addr_is_acc = false;
 		eff_addr = (this->*opcode_tbl[opcode].addr_mode)();
 
 		//execute the instruction
@@ -114,6 +115,7 @@ u16 c6502::addr_imp() {
 u16 c6502::addr_acc() {
 	//this addr mode also does basically nothing
 	//the instruction operates directly on the accumulator
+	addr_is_acc = true;
 	return NO_ADDR;
 }
 
@@ -487,7 +489,7 @@ u8 c6502::adc() {
 
 
 	if(addr_is_imm) {
-		fetched = eff_addr;
+		fetched = (u8)eff_addr;
 	}
 	else {
 		fetched = bus->read(eff_addr);
@@ -498,7 +500,7 @@ u8 c6502::adc() {
 	//check if a carry-out happened
 	set_flag(CF, result > 255);
 
-	//set the V flag if the result sign is "incorrect"
+	//set the V flag if the result's sign as a two's compl. integer is "incorrect"
 	//sign is considered incorrect if the sign of BOTH inputs is different from the result
 	set_flag(OF, (((u16)a ^ result) & ((u16)fetched ^ result)) & 0x0080);
 
@@ -511,51 +513,90 @@ u8 c6502::adc() {
 }
 
 //Performs [a - value + old_carry]
-//Carry is CLEARED if an overflow occurs
+//The compliment of the carry flag acts as the borrow bit
+//so carry is cleared if an overflow (borrow) occurs
 u8 c6502::sbc() {
 	//adc but with the value inverted
-	//NOTE: this is subtract with CARRY aka. "borrow-not"
-	u8 olda = a;
+	u8 fetched = 0;
 	u16 result = 0;
 
-	u8 value;
 	if(addr_is_imm) {
-		value = eff_addr ^ 0xFF;
+		fetched = (u8)eff_addr;
 	}
 	else {
-		value = bus->read(eff_addr) ^ 0xFF;
+		fetched = bus->read(eff_addr);
 	}
+
+	//this line is the only difference between sbc and adc
+	u16 value = (u16)fetched ^ 0x00FF;
 
 	result = a + value + (ps & (1 << CF));
 
-	//clear CF if overflow happened
-	//note: set_flag() will clear the flag if the condition is false
-	set_flag(CF, result < 255);
-
-	//if the sign bit changed set the overflow flag
-	set_flag(OF, (olda & 0x80) != (a & 0x80));
+	//set flags (they work the same as in adc)
+	set_flag(CF, result > 255);
+	set_flag(OF, (((u16)a ^ result) & ((u16)value ^ result)) & 0x0080);
 
 	a = result & 0x00FF;
-	set_flag(NF, a & 0x80);
+
 	set_flag(ZF, a == 0);
+	set_flag(NF, a & 0x80);
 
 	return 0;
 }
 
 u8 c6502::cmp() {
+	u8 fetched = 0;
+	if(addr_is_imm) {
+		fetched = (u8)eff_addr;
+	}
+	else {
+		fetched = bus->read(eff_addr);
+	}
 
+	u16 result = a - fetched;
+
+	//cmp only sets flags
+	set_flag(CF, a >= fetched);
+	set_flag(ZF, result == 0);
+	set_flag(NF, result & 0x80);
 
 	return 0;
 }
 
 u8 c6502::cpx() {
+	u8 fetched = 0;
+	if(addr_is_imm) {
+		fetched = (u8)eff_addr;
+	}
+	else {
+		fetched = bus->read(eff_addr);
+	}
 
+	u16 result = x - fetched;
+
+	//cmp only sets flags
+	set_flag(CF, x >= fetched);
+	set_flag(ZF, result == 0);
+	set_flag(NF, result & 0x80);
 
 	return 0;
 }
 
 u8 c6502::cpy() {
+	u8 fetched = 0;
+	if(addr_is_imm) {
+		fetched = (u8)eff_addr;
+	}
+	else {
+		fetched = bus->read(eff_addr);
+	}
 
+	u16 result = y - fetched;
+
+	//cmp only sets flags
+	set_flag(CF, y >= fetched);
+	set_flag(ZF, result == 0);
+	set_flag(NF, result & 0x80);
 
 	return 0;
 }
@@ -563,37 +604,57 @@ u8 c6502::cpy() {
 // 6. Increments and decrements
 
 u8 c6502::inc() {
+	u8 value = bus->read(eff_addr);
+	bus->write(eff_addr, value++);
 
+	set_flag(ZF, value == 0);
+	set_flag(NF, value & 0x80);
 
 	return 0;
 }
 
 u8 c6502::inx() {
+	x++;
 
+	set_flag(ZF, x == 0);
+	set_flag(NF, x & 0x80);
 
 	return 0;
 }
 
 u8 c6502::iny() {
+	y++;
 
+	set_flag(ZF, y == 0);
+	set_flag(NF, y & 0x80);
 
 	return 0;
 }
 
 u8 c6502::dec() {
+	u8 value = bus->read(eff_addr);
+	bus->write(eff_addr, value--);
 
+	set_flag(ZF, value == 0);
+	set_flag(NF, value & 0x80);
 
 	return 0;
 }
 
 u8 c6502::dex() {
+	x--;
 
+	set_flag(ZF, x == 0);
+	set_flag(NF, x & 0x80);
 
 	return 0;
 }
 
 u8 c6502::dey() {
+	y--;
 
+	set_flag(ZF, y == 0);
+	set_flag(NF, y & 0x80);
 
 	return 0;
 }
@@ -601,25 +662,99 @@ u8 c6502::dey() {
 // 7. Shifts
 
 u8 c6502::asl() {
+	u16 result = 0;
 
+	if(addr_is_acc) {
+		//accumulator mode
+		result = a << 1;
+		a = (u8)result;
+	} 
+	else {
+		//otherwise operate on memory
+		u8 value = bus->read(eff_addr);
+		result = bus->write(eff_addr, value << 1);
+	}
+
+	set_flag(ZF, result == 0);
+	set_flag(CF, (result & 0xFF00) != 0);
+	set_flag(NF, result & 0x80);
 
 	return 0;
 }
 
 u8 c6502::lsr() {
+	u16 result = 0;
 
+	//we can set the carry before we shift out the LSB
+	if(addr_is_acc) {
+		//accumulator mode
+		set_flag(CF, a & 0x01);
+		result = a >> 1;
+		a = (u8)result;
+	}
+	else {
+		//otherwise operate on memory
+		u8 value = bus->read(eff_addr);
+		set_flag(CF, value & 0x01);
+		result = bus->write(eff_addr, value >> 1);
+	}
+
+	set_flag(ZF, (u8)result == 0);
+
+	//wouldn't this always be cleared??
+	//I can't seem to see this mentioned anywhere
+	set_flag(NF, (u8)result & 0x80);
 
 	return 0;
 }
 
+//note: rol and ror rotate through the carry bit
+//i.e. for rol [carry -> bit0] and [bit7 -> carry]
 u8 c6502::rol() {
+	u16 result = 0;
 
+	if(addr_is_acc) {
+		result = (a << 1) | (ps & CF);
+		set_flag(CF, result & 0xFF00);
+
+		a = (u8)(result & 0x00FF);
+	}
+	else {
+		result = (bus->read(eff_addr) << 1) | (ps & CF); 
+		set_flag(CF, result & 0xFF00);
+
+		bus->write(eff_addr, (u8)(result & 0x00FF));
+	}
+
+	set_flag(ZF, (u8)result == 0);
+	set_flag(NF, (u8)result & 0x80);
 
 	return 0;
 }
 
+//perform a rotate right through the carry bit
+//[carry -> bit7] and [bit0 -> carry]
 u8 c6502::ror() {
+	u16 result = 0;
 
+	if(addr_is_acc) {
+		result = ((ps & CF) << 7) | (a >> 1);
+		set_flag(CF, result & 0xFF00);
+
+		a = (u8)(result & 0x00FF);
+	}
+	else {
+		//we should set the carry before we discard the LSB
+		u8 value = bus->read(eff_addr);
+		set_flag(CF, value & 0x01);
+
+		result = ((ps & CF) << 7) | (value >> 1);
+
+		bus->write(eff_addr, (u8)(result & 0x00FF));
+	}
+
+	set_flag(ZF, (u8)result == 0);
+	set_flag(NF, (u8)result & 0x80);
 
 	return 0;
 }
@@ -627,19 +762,40 @@ u8 c6502::ror() {
 // 8. Jumps and calls
 
 u8 c6502::jmp() {
-
+	//this one's quite simple
+	pc = eff_addr;
 
 	return 0;
 }
 
 u8 c6502::jsr() {
+	//first we should un-increment the PC
+	pc--;
 
+	/* 
+	* push the PC - high byte first
+	* not sure if the 2A03 pushes the low or high byte first
+	* but in the emulator it doesn't matter as long as we pull
+	* in the correct order in RTS
+	*/
+	bus->write((u16)(0x0100 + sp), (pc & 0xFF00) >> 8);
+	sp--;
+	bus->write((u16)(0x0100 + sp), pc & 0x00FF);
+	sp--;
+
+	//jump to the target
+	pc = eff_addr;
 
 	return 0;
 }
 
 u8 c6502::rts() {
+	sp++;
+	pc = bus->read(0x100 + sp);
+	sp++;
+	pc |= bus->read(0x100 + sp) << 8;
 
+	pc++;
 
 	return 0;
 }
@@ -648,48 +804,144 @@ u8 c6502::rts() {
 
 u8 c6502::bcc() {
 
+	if(BIT_CHK(ps, CF) == 0) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bcs() {
 
+	if(BIT_CHK(ps, CF)) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::beq() {
 
+	if(BIT_CHK(ps, ZF)) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bmi() {
 
+	if(BIT_CHK(ps, NF)) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bne() {
 
+	if(BIT_CHK(ps, ZF) == 0) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bpl() {
 
+	if(BIT_CHK(ps, NF) == 0) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bvc() {
 
+	if(BIT_CHK(ps, OF) == 0) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
 
 u8 c6502::bvs() {
 
+	if(BIT_CHK(ps, OF)) {
+		//add a cycle if the branch succeeds
+		cycles++;
+
+		//add 1 more if the branch is to a new page
+		//i.e. the high byte of the PC is changed
+		if((pc & 0xFF00) != (eff_addr & 0xFF00)) {
+			cycles++;
+		}
+
+		pc = eff_addr;
+	}
 
 	return 0;
 }
@@ -697,41 +949,47 @@ u8 c6502::bvs() {
 // 10. Status flag operations
 
 u8 c6502::clc() {
-
+	set_flag(CF, false);
 
 	return 0;
 }
 
 u8 c6502::cld() {
-	//doesn't exist on the NES
+	//doesn't "exist" on the NES
+	//but we'll do it for complete-ness sake
+	set_flag(DF, false);
+
 	return 0;
 }
 
 u8 c6502::cli() {
-
+	set_flag(ID, false);
 
 	return 0;
 }
 
 u8 c6502::clv() {
-
+	set_flag(OF, false);
 
 	return 0;
 }
 
 u8 c6502::sec() {
-
+	set_flag(CF, true);
 
 	return 0;
 }
 
 u8 c6502::sed() {
-	//doesn't exist on the NES
+	//doesn't "exist" on the NES - but again
+	//we'll do it for the sake of sanity
+	set_flag(DF, true);
+
 	return 0;
 }
 
 u8 c6502::sei() {
-
+	set_flag(ID, true);
 
 	return 0;
 }
@@ -739,7 +997,27 @@ u8 c6502::sei() {
 // 11. Misc.
 
 u8 c6502::brk() {
+	//force an irq to take place
+	//brk double-incerments the pc
+	pc++;
 
+	//first push the pc, then the status register
+	bus->write((u16)(0x0100 + sp), (pc & 0xFF00) >> 8);
+	sp--;
+	bus->write((u16)(0x0100 + sp), pc & 0x00FF);
+	sp--;
+
+	set_flag(BF, true);
+	bus->write((u16)(0x0100 + sp), ps);
+	sp--;
+
+	//the cpu only maintains that BF will be pushed as 1
+	//after the push (even before RTI is executed) all bets are off
+	set_flag(BF, false);
+
+	// PC <- 0xFFFE-FFFF
+	pc = bus->read(0xFFFE) & 0x00FF;
+	pc |= bus->read(0xFFFF) << 8;
 
 	return 0;
 }
@@ -750,7 +1028,19 @@ u8 c6502::nop() {
 }
 
 u8 c6502::rti() {
+	//pull the status regsiter and then the PC
+	sp++;
+	ps = bus->read(sp);
 
+	//we need to make sure that the break flag is not set
+	//and that the unused flag is
+	set_flag(UF, true);
+	set_flag(BF, false);
+
+	sp++;
+	pc = bus->read(0x100 + sp);
+	sp++;
+	pc |= bus->read(0x100 + sp) << 8;
 
 	return 0;
 }
@@ -758,10 +1048,12 @@ u8 c6502::rti() {
 // 12. Illegal opcode
 
 u8 c6502::ill() {
-	//pretend nothing happened
-	//but in reality these actually do something sometimes
-	//and there are games that use them
-	//TODO possibly implement later
+	/*
+	* pretend nothing happened
+	* but in reality these actually do something, sometimes
+	* and there are games that use them
+	* TODO possibly implement later
+	*/
 	return 0;
 }
 

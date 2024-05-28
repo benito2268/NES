@@ -155,7 +155,7 @@ bool Tester::test_adc() {
 	b2 = (bus->cpu->a == 0x00) &&
 		 (BIT_CHK(bus->cpu->ps, CF)) &&
 		 (BIT_CHK(bus->cpu->ps, ZF)) &&
-		 (BIT_CHK(bus->cpu->ps, OF));
+		 !(BIT_CHK(bus->cpu->ps, OF));
 
 	//overflow
 	bool b3 = false;
