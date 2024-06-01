@@ -2,7 +2,7 @@
 #include "bus.h"
 #include "bitops.h"
 
-#include "tester.h"
+#include "dbg.h"
 
 // CPU pin functions & internal helpers
 // ************************************
@@ -65,6 +65,10 @@ void c6502::set_flag(u8 fl, bool cond) {
 	}
 }
 
+void c6502::set_org(u16 org) {
+	this->pc = org;
+}
+
 void c6502::clock() {
 	if(this->cycles == 0) {
 		//we're ready for the next instruction
@@ -83,6 +87,10 @@ void c6502::clock() {
 		this->addr_is_imm = false;
 		this->addr_is_acc = false;
 		eff_addr = (this->*opcode_tbl[opcode].addr_mode)();
+
+		//check for debugging after the address is computed, but before the instr. executes
+		if(DEBUG_6502)
+			bus->debug(this->opcode_tbl[opcode], opcode);
 
 		//execute the instruction
 		this->cycles += (this->*opcode_tbl[opcode].inst)();

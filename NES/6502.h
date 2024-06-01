@@ -5,7 +5,8 @@
 #include <vector>
 
 class cDataBus;
-class Tester;
+class c6502;
+class c6502Dbg;
 
 #define DEBUG_6502 1
 #define NO_ADDR 0
@@ -21,6 +22,13 @@ class Tester;
 #define DF 3
 #define BF 4
 #define UF 5
+
+struct c6502_Instruction {
+	std::string name = ""; //for debugging
+	u16(c6502::*addr_mode)(void) = nullptr;
+	u8(c6502::*inst)(void) = nullptr;
+	u32 clocks = 0;
+};
 
 /*
 * a.k.a. the Ricoh 2A03
@@ -43,23 +51,15 @@ private:
 	bool addr_is_acc;
 	cDataBus *bus;
 
-private: 
-
-	struct c6502_Instruction {
-		std::string name = ""; //for debugging
-		u16(c6502::*addr_mode)(void) = nullptr;
-		u8(c6502::*inst)(void) = nullptr;
-		u32 clocks = 0;
-	};
-
 public:
 	c6502(cDataBus *bus);
 	~c6502();
 
 	std::vector<c6502_Instruction> opcode_tbl;
 	void set_flag(u8 fl, bool cond);
+	void set_org(u16);
 
-	friend class Tester;
+	friend class c6502Dbg;
 
 public:
 	//pin functions

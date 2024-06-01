@@ -13,19 +13,34 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Emulation">
+      <UniqueIdentifier>{5ee06cf9-5091-4a44-9426-ff4fa2866aa1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debugger">
+      <UniqueIdentifier>{fca2f46f-2ac5-4c02-aa41-e213314f5145}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SFML">
+      <UniqueIdentifier>{ba7edb20-d240-48d0-9fcd-6c856e7545a9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Testing">
+      <UniqueIdentifier>{63db9c5b-1050-4862-96c2-adb85185ae7d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="bus.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="6502.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Emulation</Filter>
     </ClCompile>
-    <ClCompile Include="tester.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="bus.cpp">
+      <Filter>Emulation</Filter>
+    </ClCompile>
+    <ClCompile Include="dbg.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="text.cpp">
+      <Filter>SFML</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -41,8 +56,19 @@
     <ClInclude Include="bitops.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="tester.h">
+    <ClInclude Include="dbg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="text.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="drawable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="functional.ca65">
+      <Filter>Testing</Filter>
+    </None>
   </ItemGroup>
 </Project>
